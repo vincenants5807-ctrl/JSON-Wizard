@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Wizard - JSON 格式化可视化工具</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: #0f111a;
+            color: #a6accd;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            background: #1a1e2e;
+            border-bottom: 1px solid #2a2f42;
+            padding: 10px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .logo { font-size: 18px; font-weight: bold; display: flex; align-items: center; gap: 8px; }
+        .logo span { color: #82aaff; }
+        .logo .brace { color: #c3e88d; font-weight: 400; }
+        .header-btns { display: flex; gap: 6px; }
+        .h-btn {
+            padding: 6px 14px;
+            background: #232842;
+            border: 1px solid #2a2f42;
+            color: #a6accd;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .h-btn:hover { background: #2a3050; border-color: #3a4060; color: #fff; }
+        .h-btn.primary { background: #82aaff; color: #0f111a; font-weight: 600; border-color: #82aaff; }
+        .h-btn.primary:hover { background: #9dbfff; }
+
+        /* 工具栏 */
+        .toolbar {
+            background: #171b2c;
+            border-bottom: 1px solid #2a2f42;
+            padding: 8px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .tool-group { display: flex; gap: 6px; align-items: center; }
+        .tool-btn {
+            padding: 5px 12px;
+            background: transparent;
+            border: 1px solid transparent;
+            color: #717cb4;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: 0.2s;
+        }
+        .tool-btn:hover { background: #232842; border-color: #2a2f42; color: #a6accd; }
+        .tool-btn.active { background: #232842; border-color: #82aaff; color: #82aaff; }
+        .tool-sep { width: 1px; height: 20px; background: #2a2f42; margin: 0 4px; }
+        .indent-select {
+            padding: 5px 8px;
+            background: #232842;
+            border: 1px solid #2a2f42;
+            color: #a6accd;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 16px;
+            font-size: 11px;
+            color: #4a5180;
+        }
+        .status-item.valid { color: #c3e88d; }
+        .status-item.invalid { color: #ff5370; }
+
+        /* 主编辑区 */
+        .editor-area {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        .panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-width: 0;
+        }
+        .panel-tab {
+            padding: 8px 20px;
+            background: #171b2c;
+            border-bottom: 1px solid #2a2f42;
+            font-size: 12px;
+            color: #4a5180;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .panel-tab .active-dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+        .dot-yellow { background: #ffcb6b; }
+        .dot-green { background: #c3e88d; }
+        .dot-blue { background: #82aaff; }
+        .dot-pink { background: #f07178; }
+
+        .divider {
+            width: 2px;
+            background: #1a1e2e;
+            cursor: col-resize;
+            flex-shrink: 0;
+        }
+        .divider:hover { background: #82aaff; }
+
+        /* 输入框 */
+        #jsonInput {
+            flex: 1;
+            background: #0f111a;
+            color: #a6accd;
+            border: none;
+            outline: none;
+            padding: 20px;
+            font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.7;
+            resize: none;
+            tab-size: 2;
+        }
+        #jsonInput::placeholder { color: #2a2f42; }
+
+        /* 格式化输出 */
+        .output-wrapper {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #0f111a;
+        }
+        .json-output {
+            font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        /* 语法高亮 */
+        .json-key { color: #82aaff; }
+        .json-string { color: #c3e88d; }
+        .json-number { color: #f78c6c; }
+        .json-boolean { color: #c792ea; }
+        .json-null { color: #ff5370; }
+        .json-bracket { color: #89ddff; }
+        .json-comma { color: #89ddff; }
+        .json-colon { color: #89ddff; }
+
+        /* 树形视图 */
+        .tree-view { font-size: 14px; font-family: 'Fira Code', monospace; }
+        .tree-node { padding: 2px 0; }
+        .tree-toggle {
+            display: inline-block;
+            width: 18px;
+            cursor: pointer;
+            color: #4a5180;
+            user-select: none;
+            transition: 0.15s;
+        }
+        .tree-toggle:hover { color: #82aaff; }
+        .tree-toggle.collapsed { transform: rotate(-90deg); }
+        .tree-children { margin-left: 20px; }
+        .tree-children.hidden { display: none; }
+        .tree-key { color: #82aaff; }
+        .tree-colon { color: #89ddff; margin: 0 4px; }
+        .tree-string { color: #c3e88d; }
+        .tree-number { color: #f78c6c; }
+        .tree-boolean { color: #c792ea; }
+        .tree-null { color: #ff5370; }
+        .tree-type {
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 3px;
+            margin-left: 6px;
+            color: #4a5180;
+            background: #1a1e2e;
+        }
+        .tree-count { color: #4a5180; font-size: 12px; margin-left: 4px; }
+
+        /* 错误面板 */
+        .error-panel {
+            padding: 20px;
+            text-align: center;
+        }
+        .error-box {
+            background: rgba(255,83,112,0.08);
+            border: 1px solid rgba(255,83,112,0.2);
+            border-radius: 12px;
+            padding: 24px;
+            color: #ff5370;
+        }
+        .error-box .icon { font-size: 36px; margin-bottom: 10px; }
+        .error-box .msg { font-size: 14px; line-height: 1.6; word-break: break-all; }
+
+        /* 搜索/过滤 */
+        .search-bar {
+            padding: 0 20px 10px;
+            background: #0f111a;
+            display: none;
+        }
+        .search-bar.show { display: block; }
+        .search-input {
+            width: 100%;
+            padding: 8px 14px;
+            background: #1a1e2e;
+            border: 1px solid #2a2f42;
+            color: #a6accd;
+            border-radius: 8px;
+            font-size: 13px;
+            outline: none;
+            font-family: 'Fira Code', monospace;
+        }
+        .search-input:focus { border-color: #82aaff; }
+        .search-input::placeholder { color: #2a2f42; }
+        .search-result { font-size: 11px; color: #4a5180; margin-top: 4px; }
+        .highlight { background: rgba(130,170,255,0.2); border-radius: 2px; padding: 0 2px; }
+
+        /* 底部状态栏 */
+        .bottom-bar {
+            background: #1a1e2e;
+            border-top: 1px solid #2a2f42;
+            padding: 6px 24px;
+            font-size: 11px;
+            color: #4a5180;
+            display: flex;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        /* 弹窗 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: #1a1e2e;
+            border: 1px solid #2a2f42;
+            border-radius: 16px;
+            padding: 28px;
+            width: 90%;
+            max-width: 500px;
+            animation: popUp 0.2s ease;
+        }
+        @keyframes popUp { from { transform:scale(0.95);opacity:0; } to { transform:scale(1);opacity:1; } }
+        .modal h3 { font-size: 18px; color: #e6e6e6; margin-bottom: 16px; }
+        .modal pre {
+            background: #0f111a;
+            border: 1px solid #2a2f42;
+            border-radius: 10px;
+            padding: 16px;
+            font-family: 'Fira Code', monospace;
+            font-size: 13px;
+            color: #a6accd;
+            max-height: 300px;
+            overflow: auto;
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+        .modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: #1a1e2e;
+            border: 1px solid #2a2f42;
+            color: #e6e6e6;
+            padding: 10px 24px;
+            border-radius: 10px;
+            font-size: 13px;
+            opacity: 0;
+            transition: 0.3s;
+            z-index: 200;
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        @media (max-width: 768px) {
+            .editor-area { flex-direction: column; }
+            .divider { width: 100%; height: 2px; cursor: row-resize; }
+            .header-btns { flex-wrap: wrap; }
+            .toolbar { padding: 6px 12px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo"><span class="brace">{</span> JSON<span>Wizard</span> <span class="brace">}</span></div>
+        <div class="header-btns">
+            <button class="h-btn" onclick="loadSample()">📦 示例数据</button>
+            <button class="h-btn" onclick="minifyJson()">📐 压缩</button>
+            <button class="h-btn" onclick="showPathExtractor()">🔍 路径提取</button>
+            <button class="h-btn" onclick="downloadJson()">💾 下载</button>
+            <button class="h-btn primary" onclick="copyFormatted()">📋 复制</button>
+        </div>
+    </header>
+
+    <div class="toolbar">
+        <div class="tool-group">
+            <button class="tool-btn active" id="viewFormatted" onclick="setView('formatted')">📝 格式化</button>
+            <button class="tool-btn" id="viewTree" onclick="setView('tree')">🌳 树形</button>
+            <div class="tool-sep"></div>
+            <span style="font-size:12px;color:#4a5180;">缩进:</span>
+            <select class="indent-select" id="indentSize" onchange="formatJson()">
+                <option value="2">2 空格</option>
+                <option value="4">4 空格</option>
+                <option value="t">Tab</option>
+            </select>
+            <div class="tool-sep"></div>
+            <button class="tool-btn" onclick="toggleSearch()">🔎 搜索</button>
+            <button class="tool-btn" onclick="sortKeys()">🔤 排序键</button>
+            <button class="tool-btn" onclick="flattenJson()">📊 扁平化</button>
+        </div>
+        <div class="status-bar">
+            <span class="status-item" id="validStatus">⏳ 等待输入</span>
+            <span class="status-item" id="sizeStatus">0 字节</span>
+            <span class="status-item" id="depthStatus">深度: 0</span>
+            <span class="status-item" id="keyCountStatus">键: 0</span>
+        </div>
+    </div>
+
+    <div class="editor-area">
+        <div class="panel">
+            <div class="panel-tab">
+                <span><span class="active-dot dot-yellow"></span>输入 (Raw JSON)</span>
+                <button class="h-btn" onclick="clearInput()" style="padding:3px 10px;font-size:11px;">清空</button>
+            </div>
+            <textarea id="jsonInput" placeholder='在此粘贴 JSON 数据...\n\n例如:\n{\n  "name": "JSON Wizard",\n  "version": "1.0"\n}' spellcheck="false"></textarea>
+        </div>
+        <div class="divider" id="divider"></div>
+        <div class="panel">
+            <div class="panel-tab">
+                <span><span class="active-dot dot-green" id="outputDot"></span><span id="outputLabel">输出 (Formatted)</span></span>
+                <span style="font-size:11px;color:#2a2f42;" id="nodeCount"></span>
+            </div>
+            <div class="search-bar" id="searchBar">
+                <input class="search-input" id="searchInput" placeholder="搜索键名或值..." oninput="searchJson()">
+                <div class="search-result" id="searchResult"></div>
+            </div>
+            <div class="output-wrapper" id="outputWrapper">
+                <div class="json-output" id="jsonOutput">
+                    <div style="text-align:center;color:#2a2f42;padding:60px 20px;">
+                        <div style="font-size:48px;margin-bottom:16px;">{ }</div>
+                        <div>在左侧输入 JSON 数据</div>
+                        <div style="margin-top:8px;">或点击「示例数据」加载示例</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bottom-bar">
+        <span>JSON Wizard · 纯前端 · 数据不会上传到服务器</span>
+        <span id="lastUpdate"></span>
+    </div>
+
+    <!-- 弹窗 -->
+    <div class="modal-overlay" id="pathModal">
+        <div class="modal">
+            <h3>🔍 JSON 路径提取</h3>
+            <p style="font-size:13px;color:#717cb4;margin-bottom:12px;">输入 JSONPath（如 <code style="background:#0f111a;padding:2px 6px;border-radius:3px;color:#c3e88d;">data.users[0].name</code>）</p>
+            <input class="search-input" id="pathInput" placeholder="输入路径，如: store.items[0].price" style="margin-bottom:12px;">
+            <pre id="pathResult">结果将显示在这里</pre>
+            <div class="modal-btns">
+                <button class="h-btn" onclick="closePath()">关闭</button>
+                <button class="h-btn primary" onclick="extractPath()">提取</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 扁平化弹窗 -->
+    <div class="modal-overlay" id="flatModal">
+        <div class="modal">
+            <h3>📊 扁平化结果</h3>
+            <pre id="flatResult"></pre>
+            <div class="modal-btns">
+                <button class="h-btn" onclick="document.getElementById('flatModal').classList.remove('show')">关闭</button>
+                <button class="h-btn primary" onclick="copyFlatResult()">📋 复制</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ========== 状态 ==========
+        let currentView = 'formatted';
+        let parsedData = null;
+        let lastFormatted = '';
+        let searchTerm = '';
+
+        const sampleData = {
+            "project": "JSON Wizard",
+            "version": "1.0.0",
+            "description": "一个强大的 JSON 格式化可视化工具",
+            "features": [
+                "实时语法高亮",
+                "树形结构展示",
+                "JSONPath 路径提取",
+                "JSON 扁平化",
+                "键名排序",
+                "关键字搜索高亮"
+            ],
+            "stats": {
+                "totalKeys": 42,
+                "maxDepth": 4,
+                "compressed": false
+            },
+            "author": {
+                "name": "AI Agent",
+                "email": "agent@example.com",
+                "social": {
+                    "github": "https://github.com",
+                    "twitter": "@jsonwizard"
+                }
+            },
+            "tags": ["json", "formatter", "visualizer", "developer-tool"],
+            "config": {
+                "theme": "Material Darker",
+                "indentSize": 2,
+                "sortKeys": false,
+                "showTypes": true
+            },
+            "isOpenSource": true,
+            "stars": 1024,
+            "license": "MIT",
+            "dependencies": null
+        };
+
+        // ========== 输入监听 ==========
+        const input = document.getElementById('jsonInput');
+        let debounceTimer;
+        input.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(formatJson, 200);
+        });
+
+        // Tab 支持
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const s = input.selectionStart;
+                input.value = input.value.substring(0,s) + '  ' + input.value.substring(input.selectionEnd);
+                input.selectionStart = input.selectionEnd = s + 2;
+            }
+        });
+
+        // ========== 格式化核心 ==========
+        function formatJson() {
+            const raw = input.value.trim();
+            if (!raw) {
+                resetOutput();
+                return;
+            }
+
+            try {
+                parsedData = JSON.parse(raw);
+                const indent = document.getElementById('indentSize').value;
+                const indentStr = indent === 't' ? '\t' : parseInt(indent);
+                lastFormatted = JSON.stringify(parsedData, null, indentStr);
+
+                // 状态更新
+                document.getElementById('validStatus').textContent = '✅ 有效 JSON';
+                document.getElementById('validStatus').className = 'status-item valid';
+                document.getElementById('sizeStatus').textContent = formatBytes(new Blob([raw]).size);
+
+                const stats = getJsonStats(parsedData);
+                document.getElementById('depthStatus').textContent = '深度: ' + stats.depth;
+                document.getElementById('keyCountStatus').textContent = '键: ' + stats.keys;
+                document.getElementById('nodeCount').textContent = `${stats.keys} 键 · ${stats.values} 值`;
+                document.getElementById('outputDot').className = 'active-dot dot-green';
+                document.getElementById('lastUpdate').textContent = '更新: ' + new Date().toLocaleTimeString();
+
+                // 渲染
+                if (currentView === 'formatted') renderFormatted();
+                else renderTree();
+
+            } catch (e) {
+                parsedData = null;
+                document.getElementById('validStatus').textContent = '❌ JSON 错误';
+                document.getElementById('validStatus').className = 'status-item invalid';
+                document.getElementById('outputDot').className = 'active-dot dot-pink';
+                document.getElementById('jsonOutput').innerHTML = `
+                    <div class="error-panel">
+                        <div class="error-box">
+                            <div class="icon">⚠️</div>
+                            <div class="msg">${escapeHtml(e.message)}</div>
+                        </div>
+                    </div>`;
+            }
+        }
+
+        function resetOutput() {
+            parsedData = null;
+            document.getElementById('validStatus').textContent = '⏳ 等待输入';
+            document.getElementById('validStatus').className = 'status-item';
+            document.getElementById('sizeStatus').textContent = '0 字节';
+            document.getElementById('depthStatus').textContent = '深度: 0';
+            document.getElementById('keyCountStatus').textContent = '键: 0';
+            document.getElementById('nodeCount').textContent = '';
+            document.getElementById('jsonOutput').innerHTML = `
+                <div style="text-align:center;color:#2a2f42;padding:60px 20px;">
+                    <div style="font-size:48px;margin-bottom:16px;">{ }</div>
+                    <div>在左侧输入 JSON 数据</div>
+                </div>`;
+        }
+
+        // ========== 语法高亮渲染 ==========
+        function renderFormatted() {
+            if (!parsedData) return;
+            const highlighted = syntaxHighlight(lastFormatted);
+            document.getElementById('jsonOutput').innerHTML = highlighted;
+        }
+
+        function syntaxHighlight(json) {
+            json = escapeHtml(json);
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
+                let cls = 'json-number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'json-key';
+                        match = match.replace(/:$/, '') + '<span class="json-colon">:</span>';
+                        return `<span class="${cls}">${match}</span>`;
+                    } else {
+                        cls = 'json-string';
+                        // 搜索高亮
+                        if (searchTerm) {
+                            const regex = new RegExp(`(${escapeRegex(searchTerm)})`, 'gi');
+                            match = match.replace(regex, '<span class="highlight">$1</span>');
+                        }
+                    }
+                } else if (/true|false/.test(match)) cls = 'json-boolean';
+                else if (/null/.test(match)) cls = 'json-null';
+                return `<span class="${cls}">${match}</span>`;
+            }).replace(/([{}\[\]])/g, '<span class="json-bracket">$1</span>')
+              .replace(/(,)(\n)/g, '<span class="json-comma">,</span>\n');
+        }
+
+        // ========== 树形视图 ==========
+        function renderTree() {
+            if (!parsedData) return;
+            document.getElementById('jsonOutput').innerHTML = '<div class="tree-view">' + buildTreeNode('root', parsedData, true) + '</div>';
+        }
+
+        function buildTreeNode(key, value, isRoot) {
+            const type = Array.isArray(value) ? 'array' : typeof value;
+            let html = '';
+
+            if (type === 'object' || type === 'array') {
+                const entries = type === 'array' ? value.map((v,i) => [i,v]) : Object.entries(value);
+                const bracket = type === 'array' ? ['[',']'] : ['{','}'];
+                const count = entries.length;
+                const id = 'node_' + Math.random().toString(36).substr(2, 6);
+
+                html += `<div class="tree-node">`;
+                html += `<span class="tree-toggle" onclick="toggleNode('${id}')">▼</span>`;
+                if (!isRoot) html += `<span class="tree-key">"${key}"</span><span class="tree-colon">:</span>`;
+                html += `<span class="json-bracket">${bracket[0]}</span>`;
+                html += `<span class="tree-count">${count} ${type === 'array' ? 'items' : 'keys'}</span>`;
+                html += `<span class="tree-type">${type}</span>`;
+                html += `<div class="tree-children" id="${id}">`;
+
+                entries.forEach(([k, v]) => {
+                    html += buildTreeNode(k, v, false);
+                });
+
+                html += `</div>`;
+                html += `<span class="json-bracket">${bracket[1]}</span>`;
+                html += `</div>`;
+            } else {
+                let valClass = 'tree-string';
+                let display = JSON.stringify(value);
+                if (typeof value === 'number') valClass = 'tree-number';
+                else if (typeof value === 'boolean') valClass = 'tree-boolean';
+                else if (value === null) { valClass = 'tree-null'; display = 'null'; }
+
+                html += `<div class="tree-node">`;
+                html += `<span class="tree-toggle" style="visibility:hidden;">▼</span>`;
+                html += `<span class="tree-key">"${key}"</span>`;
+                html += `<span class="tree-colon">:</span>`;
+                html += `<span class="${valClass}">${escapeHtml(display)}</span>`;
+                html += `<span class="tree-type">${value === null ? 'null' : typeof value}</span>`;
+                html += `</div>`;
+            }
+            return html;
+        }
+
+        function toggleNode(id) {
+            const el = document.getElementById(id);
+            const toggle = el.previousElementSibling.previousElementSibling;
+            // 找到正确的toggle
+            const parent = el.parentElement;
+            const tog = parent.querySelector('.tree-toggle');
+            el.classList.toggle('hidden');
+            tog.classList.toggle('collapsed');
+        }
+
+        // ========== 视图切换 ==========
+        function setView(view) {
+            currentView = view;
+            document.getElementById('viewFormatted').classList.toggle('active', view === 'formatted');
+            document.getElementById('viewTree').classList.toggle('active', view === 'tree');
+            document.getElementById('outputLabel').textContent = view === 'formatted' ? '输出 (Formatted)' : '输出 (Tree View)';
+            if (parsedData) {
+                if (view === 'formatted') renderFormatted();
+                else renderTree();
+            }
+        }
+
+        // ========== 工具函数 ==========
+        function escapeHtml(str) { return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+        function escapeRegex(str) { return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+        function formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+
+        function getJsonStats(obj, depth) {
+            depth = depth || 0;
+            let stats = { keys: 0, values: 0, depth: depth };
+            if (typeof obj === 'object' && obj !== null) {
+                const entries = Array.isArray(obj) ? obj.map((v,i) => [i,v]) : Object.entries(obj);
+                stats.keys += entries.length;
+                entries.forEach(([k, v]) => {
+                    if (typeof v === 'object' && v !== null) {
+                        const sub = getJsonStats(v, depth + 1);
+                        stats.keys += sub.keys;
+                        stats.values += sub.values;
+                        stats.depth = Math.max(stats.depth, sub.depth);
+                    } else {
+                        stats.values++;
+                    }
+                });
+            } else {
+                stats.values = 1;
+            }
+            return stats;
+        }
+
+        // ========== 功能 ==========
+        function loadSample() {
+            input.value = JSON.stringify(sampleData, null, 2);
+            formatJson();
+            showToast('📦 示例数据已加载');
+        }
+
+        function clearInput() {
+            input.value = '';
+            resetOutput();
+        }
+
+        function minifyJson() {
+            if (!parsedData) { showToast('⚠️ 请先输入有效 JSON'); return; }
+            input.value = JSON.stringify(parsedData);
+            formatJson();
+            showToast('📐 已压缩');
+        }
+
+        function sortKeys() {
+            if (!parsedData) { showToast('⚠️ 请先输入有效 JSON'); return; }
+            parsedData = sortObject(parsedData);
+            const indent = document.getElementById('indentSize').value;
+            const indentStr = indent === 't' ? '\t' : parseInt(indent);
+            input.value = JSON.stringify(parsedData, null, indentStr);
+            formatJson();
+            showToast('🔤 键已按字母排序');
+        }
+
+        function sortObject(obj) {
+            if (Array.isArray(obj)) return obj.map(sortObject);
+            if (typeof obj === 'object' && obj !== null) {
+                const sorted = {};
+                Object.keys(obj).sort().forEach(key => {
+                    sorted[key] = sortObject(obj[key]);
+                });
+                return sorted;
+            }
+            return obj;
+        }
+
+        function copyFormatted() {
+            if (!lastFormatted) { showToast('⚠️ 没有可复制的内容'); return; }
+            navigator.clipboard.writeText(lastFormatted).then(() => showToast('✅ 已复制到剪贴板'));
+        }
+
+        function downloadJson() {
+            if (!lastFormatted) { showToast('⚠️ 没有可下载的内容'); return; }
+            const blob = new Blob([lastFormatted], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'data.json'; a.click();
+            URL.revokeObjectURL(url);
+            showToast('💾 文件已下载');
+        }
+
+        // ========== 搜索 ==========
+        function toggleSearch() {
+            document.getElementById('searchBar').classList.toggle('show');
+            if (document.getElementById('searchBar').classList.contains('show')) {
+                document.getElementById('searchInput').focus();
+            } else {
+                searchTerm = '';
+                if (parsedData) renderFormatted();
+            }
+        }
+
+        function searchJson() {
+            searchTerm = document.getElementById('searchInput').value;
+            if (parsedData && currentView === 'formatted') {
+                renderFormatted();
+                if (searchTerm) {
+                    const matches = (lastFormatted.match(new RegExp(escapeRegex(searchTerm), 'gi')) || []).length;
+                    document.getElementById('searchResult').textContent = `找到 ${matches} 处匹配`;
+                } else {
+                    document.getElementById('searchResult').textContent = '';
+                }
+            }
+        }
+
+        // ========== 路径提取 ==========
+        function showPathExtractor() {
+            if (!parsedData) { showToast('⚠️ 请先输入有效 JSON'); return; }
+            document.getElementById('pathModal').classList.add('show');
+            document.getElementById('pathInput').focus();
+        }
+        function closePath() { document.getElementById('pathModal').classList.remove('show'); }
+
+        function extractPath() {
+            const path = document.getElementById('pathInput').value.trim();
+            if (!path) return;
+            try {
+                const parts = path.replace(/\[(\d+)\]/g, '.$1').split('.').filter(Boolean);
+                let result = parsedData;
+                for (const p of parts) {
+                    if (result === undefined || result === null) throw new Error('路径不存在');
+                    result = Array.isArray(result) ? result[parseInt(p)] : result[p];
+                }
+                document.getElementById('pathResult').textContent = JSON.stringify(result, null, 2) || 'undefined';
+            } catch (e) {
+                document.getElementById('pathResult').textContent = '❌ ' + e.message;
+            }
+        }
+        document.getElementById('pathInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') extractPath(); });
+
+        // ========== 扁平化 ==========
+        function flattenJson() {
+            if (!parsedData) { showToast('⚠️ 请先输入有效 JSON'); return; }
+            const flat = {};
+            flattenObject(parsedData, '', flat);
+            document.getElementById('flatResult').textContent = JSON.stringify(flat, null, 2);
+            document.getElementById('flatModal').classList.add('show');
+        }
+
+        function flattenObject(obj, prefix, result) {
+            if (typeof obj === 'object' && obj !== null) {
+                const entries = Array.isArray(obj) ? obj.map((v,i) => [i,v]) : Object.entries(obj);
+                entries.forEach(([k, v]) => {
+                    const newKey = prefix ? `${prefix}.${k}` : k;
+                    if (typeof v === 'object' && v !== null) flattenObject(v, newKey, result);
+                    else result[newKey] = v;
+                });
+            } else {
+                result[prefix] = obj;
+            }
+        }
+
+        function copyFlatResult() {
+            navigator.clipboard.writeText(document.getElementById('flatResult').textContent)
+                .then(() => showToast('✅ 已复制'));
+        }
+
+        // ========== 拖拽 ==========
+        const divider = document.getElementById('divider');
+        let isDragging = false;
+        divider.addEventListener('mousedown', () => isDragging = true);
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const container = document.querySelector('.editor-area');
+            const rect = container.getBoundingClientRect();
+            const pct = ((e.clientX - rect.left) / rect.width) * 100;
+            const panels = container.querySelectorAll('.panel');
+            panels[0].style.flex = `0 0 ${Math.max(20, Math.min(80, pct))}%`;
+            panels[1].style.flex = '1';
+        });
+        document.addEventListener('mouseup', () => isDragging = false);
+
+        // ========== Toast ==========
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2000);
+        }
+
+        // 弹窗关闭
+        document.querySelectorAll('.modal-overlay').forEach(m => {
+            m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); });
+        });
+    </script>
+</body>
+</html>
